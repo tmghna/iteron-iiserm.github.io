@@ -1,0 +1,114 @@
+---
+// src/components/SubmitForm.astro
+---
+
+<div class="form-wrapper">
+  <h3>Submit Your IPD Strategy</h3>
+  
+  <form id="strategy-form">
+    <div class="input-group">
+      <label for="participant-name">Full Name</label>
+      <input type="text" id="participant-name" required placeholder="John Doe" />
+    </div>
+
+    <div class="input-group">
+      <label for="email">Institute Email ID</label>
+      <input type="email" id="email" required placeholder="your.name@iisermohali.ac.in" />
+    </div>
+
+    <div class="input-group">
+      <label for="institute-name">Institute Name</label>
+      <input type="text" id="institute-name" required placeholder="IISER Mohali" />
+    </div>
+
+    <div class="input-group">
+      <label for="strategy-name">Strategy Name</label>
+      <input type="text" id="strategy-name" required placeholder="Tit-For-Tat Variant" />
+    </div>
+
+    <div class="input-group">
+      <label for="short-description">Short Strategy Description</label>
+      <textarea id="short-description" required rows="3" placeholder="Explain the logic behind your strategy briefly..."></textarea>
+    </div>
+
+    <div class="input-group">
+      <label for="strategy-code">Strategy Code</label>
+      <textarea id="strategy-code" required rows="10" placeholder="def my_strategy(history):&#10;    # Your Axelrod strategy here..."></textarea>
+    </div>
+
+    <button type="submit" id="submit-btn">Send Verification Link</button>
+  </form>
+
+  <p id="status-message" style="display: none; margin-top: 1rem; font-weight: bold;"></p>
+</div>
+
+<script>
+  import { supabase } from '../lib/supabase';
+
+  const form = document.getElementById('strategy-form') as HTMLFormElement;
+  const messageEl = document.getElementById('status-message') as HTMLParagraphElement;
+  const submitBtn = document.getElementById('submit-btn') as HTMLButtonElement;
+
+  form.addEventListener('submit', async (e) => {
+    e.preventDefault();
+    
+    // Grab all values
+    const name = (document.getElementById('participant-name') as HTMLInputElement).value.trim();
+    const email = (document.getElementById('email') as HTMLInputElement).value.trim();
+    const institute = (document.getElementById('institute-name') as HTMLInputElement).value.trim();
+    const strategyName = (document.getElementById('strategy-name') as HTMLInputElement).value.trim();
+    const description = (document.getElementById('short-description') as HTMLTextAreaElement).value.trim();
+    const code = (document.getElementById('strategy-code') as HTMLTextAreaElement).value.trim();
+
+    // 1. Client-Side Email Validation (Update domain if allowing other institutes)
+    if (!email.endsWith('.ac.in') && !email.endsWith('.edu.in') && !email.endsWith('.edu')) {
+      showMessage('Please use a valid institutional email address.', 'red');
+      return;
+    }
+
+    submitBtn.disabled = true;
+    showMessage('Sending verification link...', 'blue');
+
+    // 2. Bundle data into an object and save as JSON
+    const payload = {
+      name,
+      email,
+      institute,
+      strategyName,
+      description,
+      code
+    };
+    localStorage.setItem('pending_ipd_submission', JSON.stringify(payload));
+
+    // 3. Trigger Supabase Magic Link
+    const { error } = await supabase.auth.signInWithOtp({
+      email: email,
+      options: {
+        emailRedirectTo: `${window.location.origin}/verify`, 
+      },
+    });
+
+    if (error) {
+      showMessage(`Error: ${error.message}`, 'red');
+      submitBtn.disabled = false; 
+    } else {
+      showMessage('Success! Check your institute email for the magic link to finalize your submission.', 'green');
+      form.reset();
+    }
+  });
+
+  function showMessage(text: string, color: string) {
+    messageEl.style.display = 'block';
+    messageEl.style.color = color;
+    messageEl.innerText = text;
+  }
+</script>
+
+<style>
+  .form-wrapper { max-width: 600px; margin: 0 auto; }
+  .input-group { margin-bottom: 1.2rem; }
+  label { display: block; margin-bottom: 0.5rem; font-weight: bold; }
+  input, textarea { width: 100%; padding: 0.5rem; border: 1px solid #ccc; border-radius: 4px; font-family: inherit; }
+  button { padding: 0.75rem 1.5rem; background-color: #0056b3; color: white; border: none; border-radius: 4px; cursor: pointer; }
+  button:disabled { background-color: #999; cursor: not-allowed; }
+</style>

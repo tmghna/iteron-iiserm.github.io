@@ -1,0 +1,90 @@
+---
+// src/pages/verify.astro
+---
+
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width" />
+    <title>Verifying Strategy...</title>
+  </head>
+  <body>
+    <main class="verify-container">
+      <h2 id="status-heading">Verifying your submission...</h2>
+      <p id="status-message">Please wait while we securely upload your tournament data.</p>
+    </main>
+
+    <script>
+      import { supabase } from '../lib/supabase';
+
+      async function processVerification() {
+        const headingEl = document.getElementById('status-heading');
+        const messageEl = document.getElementById('status-message');
+
+        try {
+          // 1. Establish session from the email link
+          const { data: { session }, error: sessionError } = await supabase.auth.getSession();
+
+          if (sessionError || !session) {
+            throw new Error("Authentication failed or link expired. Please try submitting again.");
+          }
+
+          // 2. Retrieve and parse the JSON payload from the browser
+          const savedDataString = localStorage.getItem('pending_ipd_submission');
+
+          if (!savedDataString) {
+            throw new Error("No submission data found. Are you using the same browser you submitted with?");
+          }
+
+          const submissionData = JSON.parse(savedDataString);
+
+          // 3. Upload all fields to the database
+          const { error: insertError } = await supabase
+            .from('strategies')
+            .insert([
+              { 
+                user_id: session.user.id, 
+                participant_name: submissionData.name,
+                institute_email: submissionData.email,
+                institute_name: submissionData.institute,
+                strategy_name: submissionData.strategyName,
+                short_description: submissionData.description,
+                strategy_code: submissionData.code 
+              }
+            ]);
+
+          if (insertError) {
+            throw new Error(`Database error: ${insertError.message}`);
+          }
+
+          // 4. Clean up and show success
+          localStorage.removeItem('pending_ipd_submission');
+          
+          if (headingEl && messageEl) {
+            headingEl.innerText = "Submission Verified & Secured!";
+            headingEl.style.color = "green";
+            messageEl.innerText = `Thank you, ${submissionData.name}. Your strategy "${submissionData.strategyName}" has been officially entered into the tournament.`;
+          }
+
+        } catch (err: any) {
+          if (headingEl && messageEl) {
+            headingEl.innerText = "Submission Failed";
+            headingEl.style.color = "red";
+            messageEl.innerText = err.message;
+          }
+        }
+      }
+
+      processVerification();
+    </script>
+
+    <style>
+      .verify-container {
+        max-width: 600px;
+        margin: 100px auto;
+        text-align: center;
+        font-family: sans-serif;
+      }
+    </style>
+  </body>
+</html>
